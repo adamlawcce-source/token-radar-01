@@ -327,30 +327,121 @@ function holdDaysFor(age: number | null): number {
   return 30;
 }
 
-/** The category's core action, in words a farmer can follow. */
-function actionFor(p: SnapshotProtocol, capital: number, chain: string): string {
-  const c = (p.category ?? '').toLowerCase();
-  const name = p.name;
-  if (c.includes('lend') || c.includes('cdp') || c.includes('collateral')) return `Supply $${capital} of USDC to ${name} on ${chain} and leave the position open.`;
-  if (c.includes('dex')) return `Add $${capital} of liquidity to ${name}'s main pool on ${chain} and keep the position open.`;
-  if (c.includes('yield') || c.includes('leveraged farm') || c.includes('farm')) return `Deposit $${capital} into ${name}'s main yield vault on ${chain} and keep the shares.`;
-  if (c.includes('bridge')) return `Bridge $${capital} of USDC to ${chain} through ${name}, then use the bridged funds inside its app.`;
-  if (c.includes('staking') || c.includes('restak')) return `Stake $${capital} of the chain's staking asset through ${name} and hold the receipt token.`;
-  if (c.includes('perpetual') || c.includes('derivative')) return `Deposit $${capital} of USDC as margin on ${name} and open one small hedged position.`;
-  if (c.includes('prediction')) return `Fund $${capital} on ${name} and take one position in a market that settles soon.`;
-  if (c.includes('curator') || c.includes('allocator') || c.includes('risk')) return `Deposit $${capital} into a ${name} vault on ${chain} and keep the vault shares.`;
-  if (c.includes('stable')) return `Mint or deposit $${capital} of the stable asset through ${name} on ${chain}.`;
-  if (c.includes('rwa')) return `Mint $${capital} of ${name}'s yield-bearing asset on ${chain} and hold it.`;
-  if (c.includes('insurance')) return `Buy $${capital} of cover from ${name} on ${chain} and keep the policy active.`;
-  if (c.includes('basis')) return `Deposit $${capital} into ${name}'s basis strategy on ${chain} and keep the position open.`;
-  if (c.includes('liquidity manager')) return `Deposit $${capital} into ${name}'s managed liquidity vault on ${chain}.`;
-  return `Deposit $${capital} of USDC into ${name} on ${chain} and keep the position open.`;
+/** One category's farm shape: the position to open, the second qualifying move, the risk it carries. */
+interface CategoryPlan {
+  match: RegExp;
+  core: string;
+  second: string;
+  risk: string;
+}
+
+/**
+ * The plan per category, keyed by the words the snapshot itself uses for the category.
+ * `{n}` is the protocol's name, `{c}` the capital with its dollar sign, `{ch}` the chain.
+ * A category no row names falls through to the last row: the table is a starting point,
+ * never a list of special cases — two protocols in one category get the same shape, and
+ * the risk line is always the category's own risk, never an invented detail.
+ */
+const CATEGORY_PLANS: CategoryPlan[] = [
+  {
+    match: /\bdex/i,
+    core: "Add {c} of liquidity to the main {n} pool on {ch} and keep the position open.",
+    second: "Swap $10 of USDC for the other asset in the pool through {n}, so the wallet shows swaps too.",
+    risk: "The pool's two assets can drift apart, so the position can lose value against holding them.",
+  },
+  {
+    match: /lend|cdp|collateral/i,
+    core: "Supply {c} of USDC to {n} on {ch} and leave the position open.",
+    second: "Borrow $20 of USDC against the supply and repay half a week later, so the wallet shows both sides.",
+    risk: "Borrow rates can rise, and a sharp price fall can liquidate the collateral.",
+  },
+  {
+    match: /yield|farm|leveraged/i,
+    core: "Deposit {c} into the main {n} yield vault on {ch} and keep the shares.",
+    second: "Claim the vault rewards once and restake them in the same vault, so the wallet shows compounding.",
+    risk: "The vault yield falls as more capital enters, and the underlying strategy can change.",
+  },
+  {
+    match: /bridge/i,
+    core: "Bridge {c} of USDC to {ch} through {n}, then use the bridged funds inside its app.",
+    second: "Use the bridged funds for one swap or deposit on the destination chain, so the crossing is not the only action.",
+    risk: "A bridge holds funds in transit: a contract bug or a paused route can strand them on the wrong chain.",
+  },
+  {
+    match: /\bstak|restak/i,
+    core: "Stake {c} of the chain's staking asset through {n} and hold the receipt token.",
+    second: "Delegate a second, smaller stake from the same wallet a week later, so the position grows twice.",
+    risk: "Staking locks the asset, and a slashing event or an unbonding delay can hold it.",
+  },
+  {
+    match: /rwa/i,
+    core: "Mint {c} of the {n} yield-bearing asset on {ch} and hold it.",
+    second: "Read the backing report {n} publishes and hold the asset through one full reporting cycle.",
+    risk: "The off-chain backing can be redeemed or repriced, and the token can trade away from its backing.",
+  },
+  {
+    match: /derivative|perpetual|basis/i,
+    core: "Deposit {c} of USDC as margin on {n} and open one small hedged position.",
+    second: "Close the hedged position and open a fresh one a week later, so the wallet shows repeat margin use.",
+    risk: "Leverage cuts both ways: a fast move can liquidate the margin.",
+  },
+  {
+    match: /curator|allocator/i,
+    core: "Deposit {c} into a {n} vault on {ch} and keep the vault shares.",
+    second: "Move a small share into a second vault of the same protocol, so the wallet touches two vaults.",
+    risk: "A curator's allocation can change, and a vault's underlying market can turn against the position.",
+  },
+  {
+    match: /stable|wrapper/i,
+    core: "Mint or deposit {c} of the stable asset through {n} on {ch}.",
+    second: "Use the stable asset for one payment or swap on the same chain, so the wallet shows it in circulation.",
+    risk: "A stable asset can depeg if its backing or its peg mechanism slips.",
+  },
+  {
+    match: /insurance/i,
+    core: "Buy {c} of cover from {n} on {ch} and keep the policy active.",
+    second: "Read the cover terms on {n}'s own page and keep the policy active through one premium cycle.",
+    risk: "Cover pays only for the named event, and a claim can be refused.",
+  },
+  {
+    match: /prediction/i,
+    core: "Fund {c} on {n} and take one position in a market that settles soon.",
+    second: "Take a second position in a market that settles later, so the wallet is active across two settlement dates.",
+    risk: "A prediction market pays only if the position settles the right way.",
+  },
+  {
+    match: /\bchain/i,
+    core: "Deposit {c} of USDC into the main {n} app on {ch} and keep the position open.",
+    second: "Use a second app on the same chain with a small deposit, so the wallet shows two touchpoints.",
+    risk: "A new chain's apps change fast, and an early app can be replaced.",
+  },
+  {
+    match: /./,
+    core: "Deposit {c} of USDC into {n} on {ch} and keep the position open.",
+    second: "Do a second, smaller deposit a week later, so the wallet shows repeat activity, not one deposit.",
+    risk: "Points are never guaranteed: the protocol can change its rewards or launch without one.",
+  },
+];
+
+/** The category's plan: the first row whose pattern the category matches. */
+function planFor(p: SnapshotProtocol): CategoryPlan {
+  const c = p.category ?? '';
+  for (const plan of CATEGORY_PLANS) if (plan.match.test(c)) return plan;
+  return CATEGORY_PLANS[CATEGORY_PLANS.length - 1]!;
+}
+
+/** Fill a plan template: {n} the name, {c} the capital, {ch} the chain. */
+function fillPlan(template: string, p: SnapshotProtocol, capital: string, chain: string): string {
+  return template.replaceAll('{n}', p.name).replaceAll('{c}', capital).replaceAll('{ch}', chain);
 }
 
 /**
  * A protocol's farm plan, derived from its own record (category, chains, TVL, age, watchlist
- * membership). Watchlist rows carry one extra step: they are the radar's first tier, so the
- * plan tells the reader to farm them longer. Multi-chain protocols get a second-chain step.
+ * membership). Every plan runs the same shape — open a wallet, take the category's position,
+ * take a second qualifying action, show a weekly pattern, hold — and ends with the category's
+ * own risk line, so the reader farms with the downside in view. Watchlist rows carry one
+ * extra step: they are the radar's first tier, so the plan tells the reader to farm them
+ * longer. Multi-chain protocols get a second-chain step.
  */
 export function farmSteps(p: SnapshotProtocol, age: number | null, watched: boolean): FarmStep[] {
   const chain = firstChain(p);
@@ -359,6 +450,8 @@ export function farmSteps(p: SnapshotProtocol, age: number | null, watched: bool
   // must be at least 56 days too — the hold and the watchlist step used to disagree.
   const hold = watched ? Math.max(holdDaysFor(age), 56) : holdDaysFor(age);
   const gas = capital >= 150 ? 8 : 4;
+  const plan = planFor(p);
+  const money = `$${capital}`;
   const steps: FarmStep[] = [
     {
       text: `Open a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline on paper.`,
@@ -366,9 +459,14 @@ export function farmSteps(p: SnapshotProtocol, age: number | null, watched: bool
       time: '5 minutes',
     },
     {
-      text: actionFor(p, capital, chain),
-      cost: `$${capital} of capital and about $${gas} of gas`,
+      text: fillPlan(plan.core, p, money, chain),
+      cost: `${money} of capital and about $${gas} of gas`,
       time: '15 minutes to set up',
+    },
+    {
+      text: fillPlan(plan.second, p, money, chain),
+      cost: 'about $2 of gas',
+      time: '10 minutes',
     },
     {
       text: `Do one qualifying action each week — a deposit, a borrow, a swap or a vote — so the wallet shows a pattern, not a single deposit.`,
@@ -377,7 +475,7 @@ export function farmSteps(p: SnapshotProtocol, age: number | null, watched: bool
     },
     {
       text: `Hold the position for at least ${hold} days so the activity lands in more than one snapshot.`,
-      cost: `the $${capital} stays in the position`,
+      cost: `the ${money} stays in the position`,
       time: `${hold} days`,
     },
   ];
@@ -405,6 +503,11 @@ export function farmSteps(p: SnapshotProtocol, age: number | null, watched: bool
     {
       text: `Write the wallet, the dates and every transaction hash in a farm log, so you can repeat the position or unwind it cleanly.`,
       cost: 'nothing but the log',
+      time: '5 minutes',
+    },
+    {
+      text: `Risk to watch: ${plan.risk}`,
+      cost: 'no fee to check',
       time: '5 minutes',
     },
   );
