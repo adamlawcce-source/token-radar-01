@@ -1,7 +1,6 @@
 // Token Radar's dashboard. It reads window.RADAR (written beside dashboard/ by main.ts)
 // and renders the ranked board, a filterable table, a per-protocol detail drawer with the
-// model's own inputs and the farm plan board.json carries. No network: every byte it shows
-// is in data.js, and the farm steps are rendered as written — the page never re-derives them.
+// model's own inputs and the farm plan board.json carries. No network.
 (function () {
   'use strict';
 
@@ -31,18 +30,19 @@
     return (typeof n === 'number' && isFinite(n)) ? n.toFixed(2) + 'x' : 'n/a';
   }
 
-  // The model, recomputed in the page from the snapshot figures, so the number the detail
-  // view shows can be checked against the number board.json carries.
-  function impliedOf(row, model) {
+  // The model, recomputed in the page, so the detail view can be checked against board.json.
+  function impliedOf(row) {
+    var f = DATA.fit, m = DATA.model;
     var g = row.change_7d === null || row.change_7d === undefined ? 0 : row.change_7d;
-    g = Math.min(model.growth_cap, Math.max(model.growth_floor, g));
-    var growthM = 1 + (g / 100) * (g >= 0 ? model.growth_up : model.growth_down);
-    var chainM = model.chain_base + model.chain_step * Math.min((row.chains || []).length, model.chain_cap);
-    var catM = (row.category && model.category_prior[row.category]) || 1;
-    var age = row.age_days === null || row.age_days === undefined ? model.unknown_age_days : row.age_days;
-    var top = Math.log(1 + model.maturity_cap_days / model.maturity_scale_days);
-    var matM = model.maturity_floor + model.maturity_span * (Math.log(1 + Math.min(Math.max(age, 0), model.maturity_cap_days) / model.maturity_scale_days) / top);
-    return Math.max(1, Math.round(row.tvl_usd * model.base_multiple * growthM * chainM * catM * matM));
+    g = Math.min(m.growth_cap, Math.max(m.growth_floor, g));
+    var growthM = 1 + (g / 100) * (g >= 0 ? m.growth_up : m.growth_down);
+    var chainM = m.chain_base + m.chain_step * Math.min((row.chains || []).length, m.chain_cap);
+    var catM = (row.category && m.category_prior[row.category]) || 1;
+    var age = row.age_days === null || row.age_days === undefined ? m.unknown_age_days : row.age_days;
+    var top = Math.log(1 + m.maturity_cap_days / m.maturity_scale_days);
+    var matM = m.maturity_floor + m.maturity_span * (Math.log(1 + Math.min(Math.max(age, 0), m.maturity_cap_days) / m.maturity_scale_days) / top);
+    var curve = Math.exp(f.intercept + f.slope * Math.log(row.tvl_usd));
+    return Math.max(1, Math.round(curve * growthM * chainM * catM * matM));
   }
 
   function el(tag, attrs) {
@@ -138,8 +138,7 @@
     );
   }
 
-  // The five pre-token rows whose TVL grew fastest this week — momentum, not size:
-  // a small protocol gaining fast can outrank a large one standing still.
+  // The five pre-token rows whose TVL grew fastest this week.
   function topMovers() {
     var movers = DATA.rows.filter(function (r) { return r.change_7d !== null && r.change_7d > 0; })
       .sort(function (a, b) { return b.change_7d - a.change_7d || a.rank - b.rank; }).slice(0, 5);
@@ -159,19 +158,33 @@
     );
   }
 
-  // The model in plain words, one line per multiplier, so a reader can check the ranking
-  // without reading the formula: each line names what the multiplier rewards or punishes.
+  // The model in plain words, one line per multiplier.
   function explainer() {
-    var m = DATA.model;
+    var m = DATA.model, f = DATA.fit;
     return el('section', { class: 'panel explainer' },
       el('h2', { text: 'How the model works' }),
       el('ul', { class: 'how' },
-        el('li', null, el('b', { text: 'Base. ' }), 'Every protocol starts at ' + m.base_multiple + 'x its TVL — the going multiple for a pre-token protocol.'),
+        el('li', null, el('b', { text: 'Curve. ' }), 'Implied value starts on a curve fitted to the ' + f.comps + ' protocols that already have tokens: log(market cap) = ' + f.intercept + ' + ' + f.slope + ' x log(TVL), fitted at runtime from the snapshot.'),
         el('li', null, el('b', { text: 'Growth. ' }), 'A rising 7-day TVL lifts the score; a falling one counts double against it.'),
         el('li', null, el('b', { text: 'Reach. ' }), 'Each extra chain adds a little: more chains, more users who can reach the protocol.'),
         el('li', null, el('b', { text: 'Category. ' }), 'DEXs and lending score highest; bridges and liquid staking score lowest.'),
         el('li', null, el('b', { text: 'Maturity. ' }), 'The longer a protocol has run with no token, the closer its launch — up to a point.')
       )
+    );
+  }
+
+  // The comps curve in numbers, with its blind test. The error is the honest part.
+  function compsCurve() {
+    var f = DATA.fit;
+    return el('section', { class: 'panel explainer' },
+      el('h2', { text: 'Comps curve' }),
+      el('div', { class: 'equation' },
+        el('div', null, el('span', { text: 'log(market cap) = a + b x log(TVL)' }), el('b', { class: 'num', text: 'a ' + f.intercept + ' · b ' + f.slope })),
+        el('div', null, el('span', { text: 'Live-token comps fitted' }), el('b', { class: 'num', text: String(f.comps) })),
+        el('div', null, el('span', { text: 'Median market cap / TVL' }), el('b', { class: 'num', text: f.median_ratio + 'x' })),
+        el('div', null, el('span', { text: 'Blind test: median error' }), el('b', { class: 'num', text: (f.holdout_error === null ? 'n/a' : f.holdout_error + '%') + ' over ' + f.holdout + ' held out' }))
+      ),
+      el('p', { class: 'sub', text: 'The curve is rough: the blind test misses by about ' + (f.holdout_error === null ? '—' : f.holdout_error + '%') + ' at the median. It is a guide for ranking, not a price — the multipliers and the farm plan do the rest of the work.' })
     );
   }
 
@@ -296,7 +309,7 @@
       el('h2', { text: 'How implied value is computed' }),
       el('p', { class: 'sub', text: 'One function scores every row, from the snapshot figures alone. No protocol name is special-cased, and no row is hand-picked.' }),
       el('div', { class: 'formula' },
-        'implied = round( tvl_usd x ' + m.base_multiple + ' x growthM x chainM x catM x ageM )  |  ' +
+        'implied = round( exp(' + DATA.fit.intercept + ' + ' + DATA.fit.slope + ' x ln(tvl_usd)) x growthM x chainM x catM x ageM )  |  ' +
         'growthM = 1 + clamp(change_7d, ' + m.growth_floor + ', ' + m.growth_cap + ') / 100 x ' + m.growth_up + ' up, x ' + m.growth_down + ' down  |  ' +
         'chainM = ' + m.chain_base + ' + 0.02 x min(chains, ' + m.chain_cap + ')  |  ' +
         'ageM = ' + m.maturity_floor + ' + ' + m.maturity_span + ' x ln(1 + min(age, ' + m.maturity_cap_days + ') / ' + m.maturity_scale_days + ') / ln(1 + ' + m.maturity_cap_days + ' / ' + m.maturity_scale_days + ')'
@@ -314,7 +327,7 @@
     state.selected = slug;
     writeHash();
     dialog.textContent = '';
-    var recomputed = impliedOf(row, DATA.model);
+    var recomputed = impliedOf(row);
     dialog.appendChild(el('div', { class: 'detail-head' },
       el('div', null,
         el('span', { class: 'brand-name', text: 'Rank ' + row.rank + ' of ' + DATA.board_size + (row.watched ? ' — watchlist' : '') }),
@@ -327,6 +340,7 @@
       el('h3', { text: 'Implied value' }),
       el('div', { class: 'equation' },
         el('div', null, el('span', { text: 'TVL' }), el('b', { class: 'num', text: fmtUsd(row.tvl_usd) })),
+        el('div', null, el('span', { text: 'Comps curve value' }), el('b', { class: 'num', text: fmtUsd(row.curve_value_usd) })),
         el('div', null, el('span', { text: 'Seven-day growth' }), el('b', { class: 'num', text: fmtPct(row.change_7d) })),
         el('div', null, el('span', { text: 'Age with no token' }), el('b', { class: 'num', text: fmtAge(row.age_days) })),
         el('div', null, el('span', { text: 'Growth multiplier' }), el('b', { class: 'num', text: fmtMult(row.growth_multiplier) })),
@@ -361,6 +375,7 @@
     shell.appendChild(header());
     shell.appendChild(lede());
     shell.appendChild(explainer());
+    shell.appendChild(compsCurve());
     shell.appendChild(controls());
     if (state.tab === 'pre-token') {
       var movers = topMovers();
