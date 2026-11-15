@@ -138,6 +138,43 @@
     );
   }
 
+  // The five pre-token rows whose TVL grew fastest this week — momentum, not size:
+  // a small protocol gaining fast can outrank a large one standing still.
+  function topMovers() {
+    var movers = DATA.rows.filter(function (r) { return r.change_7d !== null && r.change_7d > 0; })
+      .sort(function (a, b) { return b.change_7d - a.change_7d || a.rank - b.rank; }).slice(0, 5);
+    if (movers.length === 0) return null;
+    return el('section', { class: 'panel movers', 'aria-label': 'Top movers' },
+      el('div', { class: 'movers-head' },
+        el('h2', { text: 'Top movers' }),
+        el('span', { class: 'sub', text: 'Largest 7-day TVL gain among pre-token rows' })
+      ),
+      el('div', { class: 'movers-grid' }, movers.map(function (r) {
+        return el('button', { type: 'button', class: 'mover', onclick: function () { openDetail(r.slug); } },
+          el('span', { class: 'mover-name', text: r.name }),
+          el('span', { class: 'mover-pct pos', text: fmtPct(r.change_7d) }),
+          el('span', { class: 'sub', text: 'Rank ' + r.rank + ' · ' + fmtUsd(r.implied_value_usd) + ' implied' })
+        );
+      }))
+    );
+  }
+
+  // The model in plain words, one line per multiplier, so a reader can check the ranking
+  // without reading the formula: each line names what the multiplier rewards or punishes.
+  function explainer() {
+    var m = DATA.model;
+    return el('section', { class: 'panel explainer' },
+      el('h2', { text: 'How the model works' }),
+      el('ul', { class: 'how' },
+        el('li', null, el('b', { text: 'Base. ' }), 'Every protocol starts at ' + m.base_multiple + 'x its TVL — the going multiple for a pre-token protocol.'),
+        el('li', null, el('b', { text: 'Growth. ' }), 'A rising 7-day TVL lifts the score; a falling one counts double against it.'),
+        el('li', null, el('b', { text: 'Reach. ' }), 'Each extra chain adds a little: more chains, more users who can reach the protocol.'),
+        el('li', null, el('b', { text: 'Category. ' }), 'DEXs and lending score highest; bridges and liquid staking score lowest.'),
+        el('li', null, el('b', { text: 'Maturity. ' }), 'The longer a protocol has run with no token, the closer its launch — up to a point.')
+      )
+    );
+  }
+
   function controls() {
     var categories = Array.from(new Set(DATA.rows.map(function (r) { return r.category || 'Other'; }))).sort();
     var search = el('input', { type: 'search', id: 'q', placeholder: 'Search name, category or chain', value: state.q, 'aria-label': 'Search the board' });
@@ -306,7 +343,9 @@
         var at = s.indexOf(' Cost: ');
         var action = at >= 0 ? s.slice(0, at) : s;
         var tail = at >= 0 ? s.slice(at + 1) : '';
-        return el('li', null, el('b', { text: action }), el('span', { class: 'cost', text: tail }));
+        var item = el('li', null, el('b', { text: action }), el('span', { class: 'cost', text: tail }));
+        if (action.indexOf('Risk to watch:') === 0) item.className = 'risk';
+        return item;
       }))
     ));
     if (typeof dialog.showModal === 'function') {
@@ -321,9 +360,16 @@
     var shell = el('div', { class: 'shell' });
     shell.appendChild(header());
     shell.appendChild(lede());
+    shell.appendChild(explainer());
     shell.appendChild(controls());
-    shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
-    if (state.tab === 'pre-token') shell.appendChild(modelPanel());
+    if (state.tab === 'pre-token') {
+      var movers = topMovers();
+      if (movers) shell.appendChild(movers);
+      shell.appendChild(boardTable());
+      shell.appendChild(modelPanel());
+    } else {
+      shell.appendChild(liveTable());
+    }
     shell.appendChild(el('footer', { class: 'foot' },
       el('span', { text: 'Snapshot ' + DATA.as_of + ' · DefiLlama protocol index · ' + DATA.model_version + ' model' }),
       el('span', { text: 'Implied value is a model, not a price or a promise.' })

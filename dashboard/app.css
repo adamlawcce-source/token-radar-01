@@ -111,6 +111,17 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--
 .watch { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 600; font-family: var(--font-num); vertical-align: 1px; }
 
 .model { margin-top: var(--s4); padding: var(--s5); display: grid; gap: var(--s3); }
+.movers { margin-top: var(--s4); padding: var(--s4) var(--s5); display: grid; gap: var(--s3); }
+.movers-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); }
+.movers-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s3); }
+.mover { display: grid; gap: 2px; text-align: left; padding: var(--s3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); }
+.mover:hover { border-color: var(--accent); }
+.mover-name { font-weight: 600; overflow-wrap: anywhere; }
+.mover-pct { font-family: var(--font-num); font-weight: 600; }
+.explainer { margin-top: var(--s4); padding: var(--s4) var(--s5); display: grid; gap: var(--s2); }
+.how { margin: 0; padding-left: var(--s5); display: grid; gap: 2px; color: var(--muted); }
+.how b { color: var(--ink); font-weight: 600; }
+.steps li.risk b { color: var(--negative); }
 .foot { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
 .formula { font-family: var(--font-num); font-size: 13px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
 .empty { padding: var(--s7) var(--s5); text-align: center; display: grid; gap: var(--s3); justify-items: center; }
@@ -149,6 +160,7 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--
   .lede { grid-template-columns: 1fr; gap: var(--s4); }
   .facts { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: var(--s4); }
   .field input { min-width: 0; width: 100%; }
+  .movers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
