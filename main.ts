@@ -78,6 +78,7 @@ writeFileSync(
 
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
-    `token radar: comps curve log(mcap) = ${radar.fit.intercept} + ${radar.fit.slope} x log(tvl) over ${radar.fit.comps} comps, blind holdout error ${radar.fit.holdout_error ?? 'n/a'}% (n=${radar.fit.holdout})\n` +
+    `token radar: comps curve log(mcap) = ${radar.fit.intercept} + ${radar.fit.slope} x log(tvl) over ${radar.fit.comps} launch comps, blind holdout error ${radar.fit.holdout_error ?? 'n/a'}% (n=${radar.fit.holdout}), time-split error ${radar.fit.timesplit_error ?? 'n/a'}% (n=${radar.fit.timesplit})\n` +
+    `token radar: verdicts on a $1,000 plan: FARM ${board.filter((r) => r.verdict === 'FARM').length}, THIN ${board.filter((r) => r.verdict === 'THIN').length}, SKIP ${board.filter((r) => r.verdict === 'SKIP').length}\n` +
     `token radar: wrote ${join(outDir, 'board.json')}, ${join(outDir, 'data.js')}, ${join(outDir, 'dashboard')} (${dashFiles.length} files), ${join(outDir, 'screenshots')} (${shots.length} images) and ${join(outDir, 'dossier.json')}\n`,
 );
