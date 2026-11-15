@@ -1,11 +1,6 @@
 // Token Radar's entrypoint: snapshot in, ranked board + dashboard + dossier out.
-//
 //   node main.ts --input <snapshot.json|directory> [--output <dir>]
-//
-// Outside the grader's container the output directory comes from MAKEFUN_OUTPUT_DIR
-// (or --output); inside it, /output. The program runs on Node 22 standard library only,
-// reads nothing but the sealed snapshot, writes byte-identical files on every run, and
-// refuses to write a board the gate would refuse.
+// Node 22 standard library only; reads nothing but the sealed snapshot; deterministic output.
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,7 +12,6 @@ const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const TEXT_MAX_BYTES = 65_536;
 const IMAGE_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
-/** The value of `--name <value>` or `--name=<value>` on the command line, else `fallback`. */
 function flag(name: string, fallback: string): string {
   const args = process.argv.slice(2);
   const at = args.indexOf(`--${name}`);
@@ -31,7 +25,6 @@ function fail(message: string, code = 1): never {
   process.exit(code);
 }
 
-/** Copy a directory's plain files into `to`, skipping dot-names; returns the names copied. */
 function copyDir(from: string, to: string): string[] {
   if (!existsSync(from)) return [];
   mkdirSync(to, { recursive: true });
@@ -74,6 +67,9 @@ for (const name of shots) {
   if (!IMAGE_NAME.test(name)) fail(`screenshots/${name}: a name is letters, digits and . _ -, 1 to 128 characters`);
 }
 
+// The fit, where the dossier can quote it: the dossier's text is the dashboard's files.
+writeFileSync(join(outDir, 'dashboard', 'fit.json'), `${JSON.stringify(radar.fit)}\n`);
+
 // The dossier is written last: the scorer rebuilds it from this output and compares bytes.
 writeFileSync(
   join(outDir, 'dossier.json'),
@@ -82,5 +78,6 @@ writeFileSync(
 
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
+    `token radar: comps curve log(mcap) = ${radar.fit.intercept} + ${radar.fit.slope} x log(tvl) over ${radar.fit.comps} comps, blind holdout error ${radar.fit.holdout_error ?? 'n/a'}% (n=${radar.fit.holdout})\n` +
     `token radar: wrote ${join(outDir, 'board.json')}, ${join(outDir, 'data.js')}, ${join(outDir, 'dashboard')} (${dashFiles.length} files), ${join(outDir, 'screenshots')} (${shots.length} images) and ${join(outDir, 'dossier.json')}\n`,
 );
