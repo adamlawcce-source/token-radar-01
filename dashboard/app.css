@@ -54,7 +54,7 @@ a { color: var(--accent); }
   padding-bottom: var(--s4); border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: var(--s3); }
-.mark { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; }
+.mark { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; box-shadow: 0 0 0 3px rgba(217,164,65,0.18); }
 .brand-name { font-family: var(--font-num); font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .top-meta { display: flex; flex-wrap: wrap; gap: var(--s3); justify-content: flex-end; color: var(--muted); font-size: 13px; }
 .top-meta span { white-space: nowrap; }
@@ -82,6 +82,7 @@ a { color: var(--accent); }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-panel); overflow: hidden; }
 .table-wrap { overflow-x: auto; }
+.table-wrap caption { text-align: left; padding: var(--s3) var(--s4); color: var(--muted); font-size: 13px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: var(--s3); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 th { color: var(--muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
@@ -89,6 +90,9 @@ th button { display: inline-flex; align-items: center; gap: var(--s1); border: 0
 th button:hover { color: var(--ink); }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--surface-2); }
+tbody tr[data-watch="true"] { background: rgba(217,164,65,0.05); }
+tbody tr[data-watch="true"]:hover { background: rgba(217,164,65,0.09); }
+tbody td:first-child { color: var(--muted); }
 tbody tr[data-selected="true"] { background: var(--surface-2); }
 tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -97,15 +101,17 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--
 .sub { color: var(--muted); font-size: 12px; }
 .pos { color: var(--positive); }
 .neg { color: var(--negative); }
-.bar { width: 120px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.bar { width: 140px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); }
 .implied { display: flex; align-items: center; gap: var(--s2); }
+.implied .num { font-weight: 600; }
 .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .status.live::before { background: var(--positive); }
-.watch { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); font-size: 10px; font-family: var(--font-num); vertical-align: 1px; }
+.watch { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 600; font-family: var(--font-num); vertical-align: 1px; }
 
 .model { margin-top: var(--s4); padding: var(--s5); display: grid; gap: var(--s3); }
+.foot { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
 .formula { font-family: var(--font-num); font-size: 13px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
 .empty { padding: var(--s7) var(--s5); text-align: center; display: grid; gap: var(--s3); justify-items: center; }
 .empty p { color: var(--muted); }
@@ -116,6 +122,7 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--
   position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 92vw); z-index: 10;
   background: var(--surface); border-left: 1px solid var(--border); padding: var(--s5);
   overflow-y: auto; margin: 0 0 0 auto; max-height: 100%; color: var(--ink);
+  box-shadow: -24px 0 48px rgba(0,0,0,0.45);
 }
 .detail::backdrop { background: rgba(0, 0, 0, 0.5); }
 .detail-head { display: flex; align-items: start; justify-content: space-between; gap: var(--s4); }
@@ -129,8 +136,11 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--
 .equation { display: grid; gap: var(--s2); font-family: var(--font-num); font-size: 13px; }
 .equation div { display: flex; justify-content: space-between; gap: var(--s3); }
 .equation span { color: var(--muted); }
+.equation div:last-child { border-top: 1px solid var(--border); padding-top: var(--s2); }
+.equation div:last-child b { color: var(--accent); font-size: 15px; }
 .steps { margin: 0; padding-left: var(--s5); display: grid; gap: var(--s3); }
 .steps li { padding-left: var(--s1); }
+.steps li::marker { color: var(--accent); font-weight: 600; }
 .steps b { display: block; font-weight: 500; }
 .cost { color: var(--muted); font-size: 12px; font-family: var(--font-num); }
 
